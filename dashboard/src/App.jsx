@@ -10,7 +10,10 @@ import {
   CartesianGrid,
   Legend,
   AreaChart,
-  Area
+  Area,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts'
 import logger from './logger'
 
@@ -41,6 +44,16 @@ function parsePerformanceCsv(text) {
   })).filter(d => Number.isFinite(d.epoch))
 }
 
+function parseBaselineComparisonCsv(text) {
+  const { rows } = parseCsv(text)
+  return rows.map(r => ({
+    name: r[0],
+    avgTurnaround: Number(r[1]),
+    avgWait: Number(r[2]),
+    totalCost: Number(r[3])
+  })).filter(d => d.name && Number.isFinite(d.avgTurnaround))
+}
+
 function loadCache(key) {
   try { return JSON.parse(localStorage.getItem(key) || '[]') } catch (e) { return [] }
 }
@@ -57,8 +70,10 @@ export default function App(){
   const [lastEvent, setLastEvent] = useState(null)
   const [trainingData, setTrainingData] = useState(() => loadCache('training_metrics'))
   const [perfData, setPerfData] = useState(() => loadCache('java_performance'))
+  const [baselineData, setBaselineData] = useState(() => loadCache('baseline_comparison'))
   const trainingInputRef = useRef(null)
   const perfInputRef = useRef(null)
+  const baselineInputRef = useRef(null)
   const socketRef = useRef(null)
 
   useEffect(()=>{
@@ -110,11 +125,21 @@ export default function App(){
     logger.info(`Loaded performance CSV: ${file.name} (${data.length} rows)`)
   }
 
+  async function loadBaselineComparisonFile(file){
+    const text = await file.text()
+    const data = parseBaselineComparisonCsv(text)
+    setBaselineData(data)
+    saveCache('baseline_comparison', data)
+    logger.info(`Loaded baseline comparison CSV: ${file.name} (${data.length} algorithms)`)
+  }
+
   function clearCache(){
     saveCache('training_metrics', [])
     saveCache('java_performance', [])
+    saveCache('baseline_comparison', [])
     setTrainingData([])
     setPerfData([])
+    setBaselineData([])
     logger.warn('Cleared cached metrics')
   }
 
@@ -150,10 +175,12 @@ export default function App(){
             <div className="buttonRow">
               <button onClick={()=>trainingInputRef.current?.click()}>Load Training CSV</button>
               <button onClick={()=>perfInputRef.current?.click()}>Load Performance CSV</button>
+              <button onClick={()=>baselineInputRef.current?.click()}>Load Baseline CSV</button>
               <button onClick={clearCache}>Clear Cache</button>
             </div>
             <input ref={trainingInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={e=>e.target.files[0] && loadTrainingFile(e.target.files[0])} />
             <input ref={perfInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={e=>e.target.files[0] && loadPerformanceFile(e.target.files[0])} />
+            <input ref={baselineInputRef} type="file" accept=".csv" style={{display:'none'}} onChange={e=>e.target.files[0] && loadBaselineComparisonFile(e.target.files[0])} />
           </div>
 
           <div className="block kpis">
@@ -220,6 +247,27 @@ export default function App(){
               </ResponsiveContainer>
             ) : (
               <div className="empty">Load java_performance.csv to view turnaround history.</div>
+            )}
+          </div>
+
+          <div className="chartCard">
+            <h3>Algorithm Comparison</h3>
+            {baselineData.length ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={baselineData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis yAxisId="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="avgTurnaround" name="Avg Turnaround (s)" fill="#ff6f61" />
+                  <Bar yAxisId="left" dataKey="avgWait" name="Avg Wait (s)" fill="#f4b400" />
+                  <Bar yAxisId="right" dataKey="totalCost" name="Total Cost ($)" fill="#00c2ff" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="empty">Load baseline_comparison.csv to compare algorithms.</div>
             )}
           </div>
         </section>

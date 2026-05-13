@@ -39,7 +39,7 @@ public class AgentSimulation {
     private static final int CLOUDLETS = 500;
     private static final double COST_PER_SEC = 0.1;
     private static final long SEED = 42;
-    private static final int TOTAL_EPOCHS = 20;
+    private static final int TOTAL_EPOCHS = 2;
 
     public static void main(String[] args) throws InterruptedException, IOException {
         Log.setLevel(ch.qos.logback.classic.Level.ERROR);
