@@ -114,13 +114,14 @@ select {
 .kpi span { color: var(--muted); font-size: 12px; }
 .kpi strong { display: block; margin-top: 4px; font-size: 18px; }
 
-.charts { display: grid; gap: 14px; }
+.charts { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
 .chartCard {
 	background: #0d1628;
 	border: 1px solid var(--border);
 	border-radius: 12px;
 	padding: 12px;
 }
+.chartCard:nth-child(3) { grid-column: 1 / -1; }
 
 .empty { color: var(--muted); font-size: 13px; padding: 16px 8px; }
 
@@ -141,5 +142,7 @@ select {
 	.grid { grid-template-columns: 1fr; }
 	.hero { flex-direction: column; align-items: flex-start; }
 	.statusRow { justify-content: flex-start; }
+	.charts { grid-template-columns: 1fr; }
+	.chartCard:nth-child(3) { grid-column: auto; }
 }
 

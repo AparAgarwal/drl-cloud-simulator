@@ -1,0 +1,4 @@
+Algorithm,Avg_Turnaround,Avg_Wait,Total_Cost
+Round Robin,520.45,245.32,8750.50
+FCFS,685.23,410.18,12340.75
+DRL Agent,475.86,190.45,7265.25
