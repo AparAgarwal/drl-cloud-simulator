@@ -3,6 +3,7 @@ const http = require('http')
 const { Server } = require('socket.io')
 const cors = require('cors')
 const { spawn } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 
 const app = express()
@@ -13,6 +14,23 @@ const server = http.createServer(app)
 const io = new Server(server, { cors: { origin: '*' } })
 
 let currentSimulation = null
+
+function resolveBundledMaven(projectRoot) {
+  const toolsDir = path.join(projectRoot, '.tools')
+  if (!fs.existsSync(toolsDir)) return null
+
+  const mavenDirs = fs.readdirSync(toolsDir)
+    .filter((name) => name.startsWith('apache-maven-'))
+    .sort()
+    .reverse()
+
+  for (const dir of mavenDirs) {
+    const candidate = path.join(toolsDir, dir, 'bin', process.platform === 'win32' ? 'mvn.cmd' : 'mvn')
+    if (fs.existsSync(candidate)) return candidate
+  }
+
+  return null
+}
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)
@@ -59,14 +77,23 @@ function startJavaSimulation(scenario, io) {
     msg: `[Bridge] Starting ${scenario}` 
   })
   
-  // Use java -cp to run the Java class directly from compiled classes
-  currentSimulation = spawn('java', [
-    '-cp', path.join(projectRoot, 'target', 'classes'),
-    'AgentSimulation'
-  ], {
-    cwd: projectRoot,
-    stdio: ['pipe', 'pipe', 'pipe']
-  })
+  const bundledMvn = resolveBundledMaven(projectRoot)
+  const mvnCmd = bundledMvn || 'mvn'
+  console.log('[Java] Using mvn command:', mvnCmd)
+
+  // On Windows with spaces in path, invoke .cmd through PowerShell safely.
+  if (process.platform === 'win32' && mvnCmd.toLowerCase().endsWith('.cmd')) {
+    const psCommand = `& '${mvnCmd}' -DskipTests compile exec:java -Dexec.mainClass='${scenario}'`
+    currentSimulation = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psCommand], {
+      cwd: projectRoot,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+  } else {
+    currentSimulation = spawn(mvnCmd, ['-DskipTests', 'compile', 'exec:java', `-Dexec.mainClass=${scenario}`], {
+      cwd: projectRoot,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+  }
   
   // Handle stdout
   currentSimulation.stdout.on('data', (data) => {
@@ -107,10 +134,13 @@ function startJavaSimulation(scenario, io) {
   
   currentSimulation.on('error', (err) => {
     console.error('[Java] Error starting process:', err.message)
+    const message = err.code === 'ENOENT' && mvnCmd === 'mvn'
+      ? 'mvn not found in PATH; consider running the project via scripts/run-quick-start.ps1 or ensure Maven is installed.'
+      : err.message
     io.emit('log', { 
       level: 'error', 
       time: new Date().toISOString(),
-      msg: `[Bridge] Failed to start simulation: ${err.message}` 
+      msg: `[Bridge] Failed to start simulation: ${message}` 
     })
     currentSimulation = null
   })
